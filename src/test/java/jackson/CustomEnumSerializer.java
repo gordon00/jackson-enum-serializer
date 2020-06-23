@@ -6,43 +6,40 @@ import java.util.Map;
 
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.introspect.AnnotatedMethod;
+import com.fasterxml.jackson.databind.introspect.AnnotatedMember;
 
 public class CustomEnumSerializer extends JsonSerializer<Enum> {
 
-    private final Map<Class, AnnotatedMethod> cache = new HashMap<>();
+    private final Map<Class, AnnotatedMember> cache = new HashMap<>();
 
     @Override
     public void serialize(Enum value, JsonGenerator gen, com.fasterxml.jackson.databind.SerializerProvider serializers) throws IOException {
 
-        final String strValue;
+        final Object jsonValue;
         if (value == null) {
-            strValue = null;
+            jsonValue = null;
         } else {
-            AnnotatedMethod annotatedMethod;
+            AnnotatedMember annotatedMember;
             if (!cache.containsKey(value.getClass())) {
-                annotatedMethod = serializers.getConfig().introspectClassAnnotations(value.getClass()).findJsonValueMethod();
-                cache.put(value.getClass(), annotatedMethod);
+                annotatedMember = serializers.getConfig().introspectClassAnnotations(value.getClass()).findJsonValueAccessor();
+                cache.put(value.getClass(), annotatedMember);
             } else {
-                annotatedMethod = cache.get(value.getClass());
+                annotatedMember = cache.get(value.getClass());
             }
 
-            if (annotatedMethod != null) {
+            if (annotatedMember != null) {
                 try {
-                    if (!annotatedMethod.getMember().isAccessible()) {
-                        annotatedMethod.getMember().setAccessible(true);
-                    }
-                    strValue = (String) annotatedMethod.callOn(value);
+                    jsonValue = annotatedMember.getValue(value);
                 } catch (Exception e) {
                     throw new IOException(e);
                 }
             } else {
-                strValue = value.name();
+                jsonValue = value.name();
             }
         }
 
         gen.writeStartObject();
-        gen.writeStringField("id", strValue);
+        gen.writeStringField("id", jsonValue == null ? null : jsonValue.toString());
         gen.writeStringField("libelle", value == null ? null : value.toString());
         gen.writeEndObject();
     }
